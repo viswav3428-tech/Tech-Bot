@@ -1,9 +1,11 @@
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import psycopg2
 import psycopg2.extras
+from ai_agent import process_chat_message
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, EmailStr
 from passlib.hash import bcrypt
@@ -19,7 +21,18 @@ app = FastAPI(title="TEACHBOT Backend")
 def get_connection():
     # RealDictCursor makes query results come back as {"column": value}
     # dictionaries instead of plain tuples — much easier to read/return as JSON.
-    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    if not DATABASE_URL:
+        raise HTTPException(
+            status_code=500,
+            detail="DATABASE_URL is not set. Please configure DATABASE_URL in your .env file."
+        )
+    try:
+        return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    except psycopg2.OperationalError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Database connection failed: {e}"
+        )
 
 
 @app.get("/")
@@ -256,3 +269,184 @@ def update_task_status(task_id: int, payload: TaskStatusUpdate):
     if not updated:
         raise HTTPException(status_code=404, detail="Task not found")
     return updated
+
+
+# ============================================================
+# CONVERSATIONAL AI AGENT (/chat, sessions & history)
+# ============================================================
+
+class ChatRequest(BaseModel):
+    message: str
+    robot_id: int
+    faculty_id: Optional[int] = None
+    student_id: Optional[int] = None
+    session_id: Optional[int] = None
+
+
+class ChatResponse(BaseModel):
+    session_id: int
+    reply_text: str
+    animation: str
+    task_created: Optional[Dict[str, Any]] = None
+
+
+@app.post("/chat", response_model=ChatResponse)
+def chat_with_agent(payload: ChatRequest):
+    """
+    Conversational AI Assistant endpoint.
+    - Answers campus/engineering Q&A (e.g. Ohm's law, with animations).
+    - Translates natural language commands ('go to Lab 1', 'follow', 'stop', 'dock')
+      into tasks written directly to the central `tasks` table with requested_via='voice_agent'.
+    - Stores full chat history in chat_sessions and chat_messages.
+    - Runs reliably in both connected database mode and offline demo mode.
+    """
+    conn = None
+    cur = None
+    locations = [
+        {"id": 1, "name": "Lab 1"},
+        {"id": 2, "name": "Lab 2"},
+        {"id": 3, "name": "Faculty Office"},
+        {"id": 4, "name": "Charging Dock"},
+    ]
+
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, name FROM locations")
+        db_locations = cur.fetchall()
+        if db_locations:
+            locations = db_locations
+    except HTTPException:
+        # If DB is not configured or not yet running, use default campus locations
+        conn = None
+
+    # Process message with AI agent
+    ai_result = process_chat_message(payload.message, locations)
+
+    task_created = None
+    task_id = None
+    session_id = payload.session_id or 1
+
+    if conn and cur:
+        try:
+            # 1. If a robot action was detected, insert into the central tasks table!
+            if ai_result.get("action"):
+                action = ai_result["action"]
+                task_type = action.get("task_type")
+                dest_id = action.get("destination_id")
+
+                cur.execute(
+                    """
+                    INSERT INTO tasks (robot_id, faculty_id, task_type, destination_id, requested_via)
+                    VALUES (%s, %s, %s, %s, 'voice_agent')
+                    RETURNING id, task_type, destination_id, status, created_at
+                    """,
+                    (payload.robot_id, payload.faculty_id, task_type, dest_id),
+                )
+                task_created = cur.fetchone()
+                if task_created:
+                    task_id = task_created["id"]
+
+            # 2. Manage session_id in chat_sessions
+            if not payload.session_id:
+                cur.execute(
+                    """
+                    INSERT INTO chat_sessions (faculty_id, student_id, started_at)
+                    VALUES (%s, %s, now())
+                    RETURNING id
+                    """,
+                    (payload.faculty_id, payload.student_id),
+                )
+                new_session = cur.fetchone()
+                session_id = new_session["id"]
+
+            # 3. Record user message and assistant reply in chat_messages
+            cur.execute(
+                """
+                INSERT INTO chat_messages (session_id, sender, message_text, animation_key, triggered_task)
+                VALUES (%s, 'user', %s, NULL, NULL)
+                """,
+                (session_id, payload.message),
+            )
+            cur.execute(
+                """
+                INSERT INTO chat_messages (session_id, sender, message_text, animation_key, triggered_task)
+                VALUES (%s, 'agent', %s, %s, %s)
+                """,
+                (session_id, ai_result["reply_text"], ai_result["animation"], task_id),
+            )
+            conn.commit()
+            cur.close()
+        except Exception as e:
+            conn.rollback()
+            raise HTTPException(status_code=500, detail=f"Database logging error: {e}")
+        finally:
+            conn.close()
+    else:
+        # Offline demo mode: construct virtual task object if an action was triggered
+        if ai_result.get("action"):
+            action = ai_result["action"]
+            task_created = {
+                "id": 0,
+                "task_type": action.get("task_type"),
+                "destination_id": action.get("destination_id"),
+                "status": "pending",
+                "created_at": datetime.utcnow().isoformat(),
+            }
+
+    return {
+        "session_id": session_id,
+        "reply_text": ai_result["reply_text"],
+        "animation": ai_result["animation"],
+        "task_created": task_created,
+    }
+
+
+@app.get("/chat/sessions")
+def list_chat_sessions():
+    """Retrieve recent chat sessions."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, faculty_id, student_id, started_at, ended_at
+            FROM chat_sessions
+            ORDER BY started_at DESC
+            LIMIT 20
+            """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return rows
+    finally:
+        conn.close()
+
+
+@app.get("/chat/sessions/{session_id}/messages")
+def get_session_messages(session_id: int):
+    """Retrieve full transcript of messages for a given chat session."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, session_id, sender, message_text AS message, animation_key AS animation, triggered_task AS task_id, created_at
+            FROM chat_messages
+            WHERE session_id = %s
+            ORDER BY created_at ASC
+            """,
+            (session_id,),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return rows
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
+

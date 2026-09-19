@@ -1,5 +1,21 @@
-# Environment variables - NEVER commit this
+# Ignore the virtual environment folder
+venv/
+.venv/
+env/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore local environment variables / secrets
 .env
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
 
 # FastAPI / Uvicorn logs
 *.log
@@ -8,5 +24,6 @@
 .DS_Store
 Thumbs.db
 
-# IDE settings (optional, keeps repo clean)
+# IDE settings
 .vscode/
+.idea/
