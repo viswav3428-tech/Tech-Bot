@@ -1,0 +1,3 @@
+# PostgreSQL connection string
+DATABASE_URL=postgresql://postgres:%40Viswa342008@db.ixafltqliowtiiotmzza.supabase.co:5432/postgres
+GEMINI_API_KEY=AIzaSyAbU13B-NnUf_Kg-w7sk1LMoarSdHCFN48

@@ -34,6 +34,18 @@ def get_connection():
             detail=f"Database connection failed: {e}"
         )
 
+@app.get("/debug-db")
+def debug_db():
+    try:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchone()
+        cur.close()
+        conn.close()
+        return {"status": "success", "message": "Database connection works!"}
+    except Exception as e:
+        return {"status": "error", "type": type(e).__name__, "detail": str(e)}
 
 @app.get("/")
 def root():
