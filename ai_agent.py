@@ -236,6 +236,8 @@ def call_openai_api(api_key: str, user_msg: str, locations: List[Dict[str, Any]]
                 data = resp.json()
                 content = data["choices"][0]["message"]["content"]
                 return json.loads(content)
+            else:
+                print(f"[OpenAI HTTP Error] status={resp.status_code}, body={resp.text[:500]}")
     except Exception as e:
         print(f"[OpenAI API Exception] {e}")
     return None
