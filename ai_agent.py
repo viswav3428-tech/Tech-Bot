@@ -184,7 +184,6 @@ def offline_rule_parser(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[
 
 
 def call_gemini_api(api_key: str, user_msg: str, locations: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Query Google Gemini API with JSON response format."""
     loc_str = "\n".join([f"- ID {loc.get('id')}: {loc.get('name')}" for loc in locations])
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(locations_list=loc_str)
 
@@ -206,6 +205,8 @@ def call_gemini_api(api_key: str, user_msg: str, locations: List[Dict[str, Any]]
                 data = resp.json()
                 text_out = data["candidates"][0]["content"]["parts"][0]["text"]
                 return json.loads(text_out)
+            else:
+                print(f"[Gemini HTTP Error] status={resp.status_code}, body={resp.text[:500]}")
     except Exception as e:
         print(f"[Gemini API Exception] {e}")
     return None
