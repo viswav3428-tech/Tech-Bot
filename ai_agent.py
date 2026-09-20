@@ -187,7 +187,7 @@ def call_gemini_api(api_key: str, user_msg: str, locations: List[Dict[str, Any]]
     loc_str = "\n".join([f"- ID {loc.get('id')}: {loc.get('name')}" for loc in locations])
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(locations_list=loc_str)
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     payload = {
         "contents": [
             {"role": "user", "parts": [{"text": f"{system_prompt}\n\nUser: {user_msg}"}]}
