@@ -17,6 +17,14 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 app = FastAPI(title="TEACHBOT Backend")
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_connection():
     # RealDictCursor makes query results come back as {"column": value}
