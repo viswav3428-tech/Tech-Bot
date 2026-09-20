@@ -199,7 +199,7 @@ def call_gemini_api(api_key: str, user_msg: str, locations: List[Dict[str, Any]]
     }
 
     try:
-        with httpx.Client(timeout=8.0) as client:
+        with httpx.Client(timeout=30.0) as client:
             resp = client.post(url, json=payload)
             if resp.status_code == 200:
                 data = resp.json()
