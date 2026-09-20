@@ -248,6 +248,7 @@ def process_chat_message(user_msg: str, locations: List[Dict[str, Any]]) -> Dict
     """
     gemini_key = os.getenv("GEMINI_API_KEY")
     openai_key = os.getenv("OPENAI_API_KEY")
+    print(f"[DEBUG] Gemini key present: {bool(gemini_key)}, OpenAI key present: {bool(openai_key)}")
 
     result = None
     if gemini_key:
