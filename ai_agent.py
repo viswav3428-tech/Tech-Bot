@@ -252,9 +252,11 @@ def process_chat_message(user_msg: str, locations: List[Dict[str, Any]]) -> Dict
     print(f"[DEBUG] Gemini key present: {bool(gemini_key)}, OpenAI key present: {bool(openai_key)}")
 
     result = None
+
     if gemini_key:
         result = call_gemini_api(gemini_key, user_msg, locations)
-    elif openai_key:
+
+    if not result and openai_key:
         result = call_openai_api(openai_key, user_msg, locations)
 
     # If LLM didn't return or isn't configured, use rule-based offline parser
