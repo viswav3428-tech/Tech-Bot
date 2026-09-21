@@ -3,7 +3,8 @@ import os
 import re
 from typing import Any, Dict, List, Optional
 import httpx
-
+from knowledge_base 
+import lookup_academic_kb
 
 SYSTEM_PROMPT_TEMPLATE = """
 You are TEACHBOT, an intelligent college campus service robot built for the Smart India Hackathon.
