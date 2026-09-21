@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TEACHBOT Control</title>
+<style>
+  :root {
+    --bg: #10141a;
+    --panel: #171d26;
+    --panel-border: #262e3a;
+    --text: #e6eaf0;
+    --text-dim: #8b93a3;
+    --accent: #4fd1c5;
+    --accent-dim: #2c7a72;
+    --warn: #f0a742;
+    --danger: #e5697b;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.5;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    margin: 0;
+  }
+  #conn {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #conn .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-dim);
+  }
+  #conn.online .dot { background: var(--accent); }
+  #conn.offline .dot { background: var(--danger); }
+
+  main {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+    padding: 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin: 0 0 14px 0;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: var(--text-dim); font-size: 13px; }
+  .stat-value { font-family: var(--mono); font-size: 15px; }
+  .stat-value.warn { color: var(--warn); }
+  .stat-value.ok { color: var(--accent); }
+
+  select, button, input[type=text] {
+    font-family: var(--sans);
+    font-size: 14px;
+    border-radius: 7px;
+    border: 1px solid var(--panel-border);
+    background: #0d1117;
+    color: var(--text);
+    padding: 9px 12px;
+  }
+  select { width: 100%; margin-bottom: 10px; }
+  button {
+    cursor: pointer;
+    border-color: var(--accent-dim);
+    transition: background 0.15s ease;
+  }
+  button:hover { background: #16323030; }
+  button.primary {
+    background: var(--accent);
+    color: #06201c;
+    font-weight: 600;
+    border: none;
+  }
+  button.primary:hover { background: #6ddccf; }
+  button.danger {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .btn-row button { flex: 1; min-width: 90px; }
+
+  #taskBox { font-family: var(--mono); font-size: 13px; color: var(--text-dim); }
+  #taskBox.has-task { color: var(--text); }
+
+  #chatLog {
+    height: 340px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 4px;
+    margin-bottom: 14px;
+  }
+  .msg {
+    max-width: 80%;
+    padding: 10px 13px;
+    border-radius: 9px;
+    font-size: 14px;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--accent-dim);
+    color: #eafffb;
+  }
+  .msg.agent {
+    align-self: flex-start;
+    background: #232b38;
+  }
+  .msg .tag {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 5px;
+  }
+  .chat-input-row { display: flex; gap: 8px; }
+  .chat-input-row input { flex: 1; }
+
+  #slideName { color: var(--text-dim); font-size: 13px; margin-top: 8px; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: #2a3340; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TEACHBOT Control</h1>
+  <div id="conn"><span class="dot"></span><span id="connText">connecting...</span></div>
+</header>
+
+<main>
+  <div>
+    <div class="panel">
+      <h2>Robot status</h2>
+      <div class="stat-row"><span class="stat-label">Battery</span><span class="stat-value" id="stat-battery">--</span></div>
+      <div class="stat-row"><span class="stat-label">Mode</span><span class="stat-value" id="stat-mode">--</span></div>
+      <div class="stat-row"><span class="stat-label">Position</span><span class="stat-value" id="stat-pos">--</span></div>
+      <div class="stat-row"><span class="stat-label">Last update</span><span class="stat-value" id="stat-time">--</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>Send command</h2>
+      <select id="destSelect"><option>Loading locations...</option></select>
+      <button class="primary" style="width:100%" onclick="sendTask('goto')">Go to destination</button>
+      <div class="btn-row">
+        <button onclick="sendTask('follow')">Follow me</button>
+        <button onclick="sendTask('dock')">Return to dock</button>
+      </div>
+      <div class="btn-row">
+        <button class="danger" style="width:100%" onclick="sendTask('stop')">Stop</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Current task</h2>
+      <div id="taskBox">No pending task</div>
+    </div>
+
+    <div class="panel">
+      <h2>Presentation slides <span style="color:var(--text-dim); font-weight:400;">(placeholder)</span></h2>
+      <input type="file" id="slideFile" onchange="handleSlideUpload(this)">
+      <div id="slideName">No file selected</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2>Talk to TEACHBOT</h2>
+      <div id="chatLog"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Ask a question or give a command..." onkeydown="if(event.key==='Enter') sendChat()">
+        <button id="micBtn" onclick="toggleListening()" title="Speak instead of typing">🎤</button>
+        <button class="primary" onclick="sendChat()">Send</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  // ---- Configure this ----
+  const BACKEND_URL = "https://tech-bot-3hra.onrender.com";
+  const ROBOT_ID = 1;
+
+  let sessionId = null;
+
+  function setConn(online) {
+    const el = document.getElementById('conn');
+    const txt = document.getElementById('connText');
+    el.className = online ? 'online' : 'offline';
+    txt.textContent = online ? 'connected' : 'unreachable';
+  }
+
+  async function refreshStatus() {
+    try {
+      const res = await fetch(`${BACKEND_URL}/status/${ROBOT_ID}`);
+      if (!res.ok) throw new Error('no status yet');
+      const data = await res.json();
+      document.getElementById('stat-battery').textContent = data.battery_percent != null ? data.battery_percent + '%' : '--';
+      document.getElementById('stat-battery').className = 'stat-value ' + (data.battery_percent < 20 ? 'warn' : 'ok');
+      document.getElementById('stat-mode').textContent = data.mode || '--';
+      document.getElementById('stat-pos').textContent = (data.pos_x != null && data.pos_y != null)
+        ? `${data.pos_x.toFixed(2)}, ${data.pos_y.toFixed(2)}` : '--';
+      document.getElementById('stat-time').textContent = data.reported_at
+        ? new Date(data.reported_at).toLocaleTimeString() : '--';
+      setConn(true);
+    } catch (e) {
+      setConn(false);
+    }
+  }
+
+  async function refreshTask() {
+    try {
+      const res = await fetch(`${BACKEND_URL}/tasks/pending/${ROBOT_ID}`);
+      const tasks = await res.json();
+      const box = document.getElementById('taskBox');
+      if (tasks && tasks.length > 0) {
+        const t = tasks[0];
+        box.className = 'has-task';
+        box.textContent = `${t.task_type.toUpperCase()} · destination_id=${t.destination_id ?? '—'} · requested via ${t.requested_via}`;
+      } else {
+        box.className = '';
+        box.textContent = 'No pending task';
+      }
+    } catch (e) { /* silent, status panel already shows connection state */ }
+  }
+
+  async function loadLocations() {
+    try {
+      const res = await fetch(`${BACKEND_URL}/locations`);
+      const locs = await res.json();
+      const sel = document.getElementById('destSelect');
+      sel.innerHTML = '';
+      locs.forEach(loc => {
+        const opt = document.createElement('option');
+        opt.value = loc.id;
+        opt.textContent = loc.name;
+        sel.appendChild(opt);
+      });
+    } catch (e) {
+      document.getElementById('destSelect').innerHTML = '<option>Could not load locations</option>';
+    }
+  }
+
+  async function sendTask(type) {
+    const destId = document.getElementById('destSelect').value;
+    const body = { robot_id: ROBOT_ID, task_type: type, requested_via: 'dashboard' };
+    if (type === 'goto' && destId) body.destination_id = parseInt(destId);
+    try {
+      await fetch(`${BACKEND_URL}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      refreshTask();
+    } catch (e) {
+      alert('Could not send command -- check backend connection');
+    }
+  }
+
+  function appendMessage(text, sender, animation) {
+    const log = document.getElementById('chatLog');
+    const div = document.createElement('div');
+    div.className = `msg ${sender}`;
+    div.textContent = text;
+    if (animation) {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = `animation: ${animation}`;
+      div.appendChild(tag);
+    }
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function sendChat() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    if (!message) return;
+    appendMessage(message, 'user');
+    input.value = '';
+
+    try {
+      const payload = { message, robot_id: ROBOT_ID };
+      if (sessionId) payload.session_id = sessionId;
+      const res = await fetch(`${BACKEND_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      sessionId = data.session_id;
+      appendMessage(data.reply_text, 'agent', data.animation);
+      if (window.speechSynthesis) {
+        const utter = new SpeechSynthesisUtterance(data.reply_text);
+        speechSynthesis.speak(utter);
+      }
+      refreshTask();
+    } catch (e) {
+      appendMessage('Could not reach TEACHBOT -- check backend connection', 'agent');
+    }
+  }
+
+  // ---- Voice input, using the browser's built-in speech recognition ----
+  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognizer = null;
+  let listening = false;
+
+  if (SpeechRecognitionAPI) {
+    recognizer = new SpeechRecognitionAPI();
+    recognizer.lang = 'en-US';
+    recognizer.interimResults = false;
+    recognizer.maxAlternatives = 1;
+
+    recognizer.onresult = (event) => {
+      const heard = event.results[0][0].transcript;
+      document.getElementById('chatInput').value = heard;
+      sendChat();
+    };
+    recognizer.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      setListening(false);
+    };
+    recognizer.onend = () => setListening(false);
+  } else {
+    document.getElementById('micBtn').title = 'Voice input not supported in this browser -- try Chrome';
+    document.getElementById('micBtn').style.opacity = '0.4';
+  }
+
+  function setListening(on) {
+    listening = on;
+    const btn = document.getElementById('micBtn');
+    btn.style.background = on ? 'var(--danger)' : '';
+    btn.textContent = on ? '⏹' : '🎤';
+  }
+
+  function toggleListening() {
+    if (!recognizer) return;
+    if (listening) {
+      recognizer.stop();
+      setListening(false);
+    } else {
+      recognizer.start();
+      setListening(true);
+    }
+  }
+
+  function handleSlideUpload(input) {
+    const label = document.getElementById('slideName');
+    if (input.files && input.files.length > 0) {
+      label.textContent = `Selected: ${input.files[0].name} (display only -- not uploaded yet)`;
+    } else {
+      label.textContent = 'No file selected';
+    }
+  }
+
+  // Initial load + polling
+  loadLocations();
+  refreshStatus();
+  refreshTask();
+  setInterval(refreshStatus, 5000);
+  setInterval(refreshTask, 5000);
+</script>
+
+</body>
+</html>
