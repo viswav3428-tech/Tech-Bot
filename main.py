@@ -1,4 +1,5 @@
 import os
+import base64
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -6,7 +7,7 @@ import psycopg2
 import psycopg2.extras
 from ai_agent import process_chat_message
 # pyrefly: ignore [missing-import]
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from passlib.hash import bcrypt
 from dotenv import load_dotenv
@@ -465,8 +466,102 @@ def get_session_messages(session_id: int):
         conn.close()
 
 
+# ============================================================
+# VOICE TRANSCRIPTION (/transcribe)
+# ============================================================
+# The dashboard sends a short browser recording here.  We keep the
+# microphone permission in the browser and keep all AI/API keys on the server.
+
+MAX_AUDIO_BYTES = 10 * 1024 * 1024  # short voice messages only
+
+
+def _extract_gemini_text(data: Dict[str, Any]) -> str:
+    """Extract text safely from a Gemini generateContent response."""
+    try:
+        candidates = data.get("candidates") or []
+        parts = candidates[0].get("content", {}).get("parts", [])
+        return " ".join(
+            str(part.get("text", "")).strip()
+            for part in parts
+            if part.get("text")
+        ).strip()
+    except (IndexError, AttributeError, TypeError):
+        return ""
+
+
+@app.post("/transcribe")
+async def transcribe_audio(request: Request):
+    """Convert a short browser microphone recording into text.
+
+    This endpoint is intentionally server-side so the Gemini API key is never
+    exposed in the dashboard HTML.  It accepts raw audio bytes with the
+    browser-provided Content-Type, e.g. audio/webm;codecs=opus.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured on the backend")
+
+    audio = await request.body()
+    if not audio:
+        raise HTTPException(status_code=400, detail="No audio was received")
+    if len(audio) > MAX_AUDIO_BYTES:
+        raise HTTPException(status_code=413, detail="Audio is too large. Please speak for a shorter time.")
+
+    mime_type = (request.headers.get("content-type") or "audio/webm").split(";")[0].strip().lower()
+    allowed_prefixes = ("audio/",)
+    if not mime_type.startswith(allowed_prefixes):
+        raise HTTPException(status_code=415, detail=f"Unsupported audio type: {mime_type}")
+
+    # Inline audio keeps the implementation simple for short voice clips.
+    # Gemini's audio input supports inline bytes for small requests.
+    payload = {
+        "contents": [{
+            "parts": [
+                {
+                    "text": (
+                        "Transcribe the user's speech exactly as spoken. "
+                        "Return ONLY the transcription text, with no quotes, "
+                        "explanation, or commentary. Preserve important robot "
+                        "commands and technical terms such as Lab 1, ESP32, "
+                        "Raspberry Pi, Ohm's Law, follow me, stop, dock, and deliver."
+                    )
+                },
+                {
+                    "inline_data": {
+                        "mime_type": mime_type,
+                        "data": base64.b64encode(audio).decode("ascii"),
+                    }
+                },
+            ]
+        }],
+        "generationConfig": {"temperature": 0.0},
+    }
+
+    transcribe_model = os.getenv("TRANSCRIBE_MODEL", "gemini-2.5-flash")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{transcribe_model}:generateContent"
+    try:
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            response = await client.post(
+                url,
+                headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+                json=payload,
+            )
+        if response.status_code != 200:
+            print(f"[Transcribe Gemini HTTP Error] status={response.status_code}, body={response.text[:1000]}")
+            raise HTTPException(status_code=502, detail="Speech transcription service failed")
+
+        text = _extract_gemini_text(response.json())
+        if not text:
+            raise HTTPException(status_code=422, detail="No speech could be transcribed")
+        return {"text": text}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[Transcribe Exception] {exc}")
+        raise HTTPException(status_code=502, detail="Speech transcription service is unavailable")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
 
