@@ -239,7 +239,7 @@ def offline_rule_parser(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[
 
     # Default general reply
     return {
-        "reply_text": “I'm TechBot, an AI-powered assistive robot developed by RoboCore. I answer questions, explain concepts, support faculty, and assist with deliveries.”,
+        "reply_text": “I'm TechBot an AI-powered assistive robot developed by RoboCore. I answer questions explain concepts support faculty and assist with deliveries.”,
         "animation": "speaking",
         "action": None,
     }
