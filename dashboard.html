@@ -162,6 +162,34 @@
 
   #slideName { color: var(--text-dim); font-size: 13px; margin-top: 8px; }
 
+  #avatarBox {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: #0d1117;
+    border: 1px solid var(--panel-border);
+    border-radius: 9px;
+    margin-bottom: 14px;
+  }
+  #avatarFace { font-size: 34px; line-height: 1; transition: transform 0.2s ease; }
+  #avatarLabel {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    text-transform: capitalize;
+  }
+  #voiceStatus {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    min-height: 16px;
+    margin-bottom: 6px;
+  }
+  #voiceStatus.active { color: var(--accent); }
+  #voiceStatus.error { color: var(--danger); }
+  #muteBtn.muted { opacity: 0.5; border-color: var(--danger); }
+
   ::-webkit-scrollbar { width: 8px; }
   ::-webkit-scrollbar-thumb { background: #2a3340; border-radius: 4px; }
 </style>
@@ -211,10 +239,16 @@
   <div>
     <div class="panel">
       <h2>Talk to TEACHBOT</h2>
+      <div id="avatarBox">
+        <span id="avatarFace">🤖</span>
+        <span id="avatarLabel">idle</span>
+      </div>
       <div id="chatLog"></div>
+      <div id="voiceStatus"></div>
       <div class="chat-input-row">
         <input type="text" id="chatInput" placeholder="Ask a question or give a command..." onkeydown="if(event.key==='Enter') sendChat()">
         <button id="micBtn" onclick="toggleListening()" title="Speak instead of typing">🎤</button>
+        <button id="muteBtn" onclick="toggleMute()" title="Turn AI voice reply on/off">🔊</button>
         <button class="primary" onclick="sendChat()">Send</button>
       </div>
     </div>
@@ -227,6 +261,61 @@
   const ROBOT_ID = 1;
 
   let sessionId = null;
+  let muted = false;
+
+  // Maps each animation tag your backend sends to a simple face + label.
+  // Add more here if ai_agent.py's ANIMATION list ever grows.
+  const ANIMATION_FACES = {
+    idle: ['🤖', 'idle'],
+    speaking: ['🗣️', 'speaking'],
+    listening: ['👂', 'listening'],
+    navigating: ['🧭', 'navigating'],
+    following: ['🚶', 'following'],
+    delivering: ['📦', 'delivering'],
+    explaining_ohms_law: ['⚡', 'explaining ohm\'s law'],
+    explaining_engineering: ['📐', 'explaining'],
+  };
+
+  function updateAvatar(animation) {
+    const [face, label] = ANIMATION_FACES[animation] || ['🤖', 'idle'];
+    document.getElementById('avatarFace').textContent = face;
+    document.getElementById('avatarLabel').textContent = label;
+  }
+
+  function toggleMute() {
+    muted = !muted;
+    const btn = document.getElementById('muteBtn');
+    btn.textContent = muted ? '🔇' : '🔊';
+    btn.classList.toggle('muted', muted);
+    if (muted) speechSynthesis.cancel();
+  }
+
+  // On Linux, Chrome/Chromium's speech synthesis often has ZERO voices
+  // available until the OS speech engine is installed (espeak-ng), and
+  // getVoices() can return empty on first call even when it works --
+  // this forces a reload of the voice list once the browser reports it.
+  let voicesReady = false;
+  function primeVoices() {
+    const voices = speechSynthesis.getVoices();
+    if (voices.length > 0) voicesReady = true;
+  }
+  if (window.speechSynthesis) {
+    primeVoices();
+    speechSynthesis.onvoiceschanged = primeVoices;
+  }
+
+  function speakReply(text) {
+    if (muted || !window.speechSynthesis) return;
+    if (!voicesReady) {
+      document.getElementById('voiceStatus').textContent =
+        'No TTS voice installed on this system -- run: sudo apt install espeak-ng speech-dispatcher';
+      document.getElementById('voiceStatus').className = 'error';
+      return;
+    }
+    speechSynthesis.cancel(); // stop any overlapping previous speech
+    const utter = new SpeechSynthesisUtterance(text);
+    speechSynthesis.speak(utter);
+  }
 
   function setConn(online) {
     const el = document.getElementById('conn');
@@ -335,10 +424,8 @@
       const data = await res.json();
       sessionId = data.session_id;
       appendMessage(data.reply_text, 'agent', data.animation);
-      if (window.speechSynthesis) {
-        const utter = new SpeechSynthesisUtterance(data.reply_text);
-        speechSynthesis.speak(utter);
-      }
+      updateAvatar(data.animation);
+      speakReply(data.reply_text);
       refreshTask();
     } catch (e) {
       appendMessage('Could not reach TEACHBOT -- check backend connection', 'agent');
@@ -350,19 +437,38 @@
   let recognizer = null;
   let listening = false;
 
+  const VOICE_ERROR_MESSAGES = {
+    'no-speech': 'No speech detected -- click the mic and speak immediately, within 1 second.',
+    'audio-capture': 'No microphone found -- check it is connected and selected in browser mic permissions.',
+    'not-allowed': 'Microphone permission was denied -- click the padlock icon in the address bar and allow it.',
+    'network': 'Speech service unreachable -- this browser build may be missing Google API keys (common on Brave/Chromium). Try real Google Chrome.',
+    'aborted': 'Listening was interrupted.',
+  };
+
+  function setVoiceStatus(text, isError) {
+    const el = document.getElementById('voiceStatus');
+    el.textContent = text;
+    el.className = isError ? 'error' : 'active';
+  }
+
   if (SpeechRecognitionAPI) {
     recognizer = new SpeechRecognitionAPI();
     recognizer.lang = 'en-US';
     recognizer.interimResults = false;
+    recognizer.continuous = false;
     recognizer.maxAlternatives = 1;
 
+    recognizer.onstart = () => setVoiceStatus('Listening... speak now', false);
+    recognizer.onspeechstart = () => setVoiceStatus('Hearing you...', false);
     recognizer.onresult = (event) => {
       const heard = event.results[0][0].transcript;
+      setVoiceStatus(`Heard: "${heard}"`, false);
       document.getElementById('chatInput').value = heard;
       sendChat();
     };
     recognizer.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
+      setVoiceStatus(VOICE_ERROR_MESSAGES[event.error] || `Error: ${event.error}`, true);
       setListening(false);
     };
     recognizer.onend = () => setListening(false);
