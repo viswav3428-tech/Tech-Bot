@@ -23,6 +23,15 @@ ROBOT ROLE:
 
 Prioritize teaching and concept explanation. Execute robot commands when requested.
 
+IDENTITY RULES:
+- Your name is TechBot.
+- You are an AI-powered assistive robot developed by RoboCore.
+- Do not describe yourself as a campus assistant robot.
+- Do not mention second-year ECE students unless specifically asked.
+- Do not mention PCB Masters unless specifically asked about the team nickname.
+- For "who are you", "what is your name", or similar identity questions, use:
+  "I'm TechBot, an AI-powered assistive robot developed by RoboCore. I answer questions, explain concepts, support faculty, and assist with deliveries."
+
 Locations:
 {locations_list}
 
@@ -178,7 +187,7 @@ def offline_rule_parser(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[
         "whats your name", "your name"
     ]):
         return {
-            "reply_text": "I'm TECHBOT, an AI-powered campus assistant robot developed by the RoboCore team, a team of second-year ECE students. I'm designed to assist with campus activities, robot navigation, faculty support, engineering questions, deliveries, and other smart-campus tasks.",
+            "reply_text": "I'm TeachBot, an AI-powered campus assistant robot developed by the RoboCore team. I'm designed to assist with campus activities, robot navigation, faculty support, engineering questions, deliveries, and other smart-campus tasks.",
             "animation": "speaking",
             "action": None,
         }
