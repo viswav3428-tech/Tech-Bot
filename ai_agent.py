@@ -6,7 +6,7 @@ import httpx
 from knowledge_base import lookup_academic_kb
 
 SYSTEM_PROMPT_TEMPLATE = """
-You are TECHBOT, an AI teaching assistant robot for college students, developed by the RoboCore team (PCB Masters), a second-year ECE team.
+You are TechBot, an AI teaching assistant robot for college students, developed by the RoboCore team.
 
 PRIMARY ROLE:
 - Answer student and teacher questions.
@@ -63,7 +63,7 @@ def match_location(user_msg: str, locations: List[Dict[str, Any]]) -> Optional[D
 def offline_rule_parser(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Intelligent offline fallback intent parser.
-    Guarantees that TEACHBOT can execute robot commands and answer
+    Guarantees that TechBot can execute robot commands and answer
     core engineering questions even without an internet connection or LLM API key.
     """
     cleaned = clean_text(user_msg)
@@ -198,7 +198,7 @@ def offline_rule_parser(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[
         "what is your team", "who is your team"
     ]):
         return {
-            "reply_text": "RoboCore is the team behind TECHBOT. We are a team of second-year ECE students developing this AI-powered campus assistant robot.",
+            "reply_text": "RoboCore is the team behind TechBot. We are a team of second-year ECE students developing this AI-powered campus assistant robot.",
             "animation": "speaking",
             "action": None,
         }
@@ -239,7 +239,8 @@ def offline_rule_parser(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[
 
     # Default general reply
     return {
-        "reply_text": "I'm TECHBOT, an AI-powered assistive robot developed by RoboCore. I answer questions, explain concepts, support faculty, and assist with deliveries.",
+        "reply_text": “I'm TechBot, an AI-powered assistive robot developed by RoboCore. I answer questions, explain concepts, support faculty, and assist with deliveries.”,
+        "animation": "speaking",
         "action": None,
     }
 
