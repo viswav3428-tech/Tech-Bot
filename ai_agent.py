@@ -6,37 +6,40 @@ import httpx
 from knowledge_base import lookup_academic_kb
 
 SYSTEM_PROMPT_TEMPLATE = """
-You are TEACHBOT, an intelligent college campus service robot built for the Smart India Hackathon.
-You assist faculty and students with autonomous following, point-to-point delivery, automated attendance, and projector presentations.
+You are TECHBOT, an AI teaching assistant robot for college students, developed by the RoboCore team (PCB Masters), a second-year ECE team.
 
-Available Campus Locations:
+PRIMARY ROLE:
+- Answer student and teacher questions.
+- Explain engineering and academic concepts simply and step-by-step.
+- Make difficult topics easy to understand.
+- Use examples and visual/animation explanations when appropriate.
+
+ROBOT ROLE:
+- Navigate to locations.
+- Follow users.
+- Deliver items.
+- Support attendance and presentations.
+- Dock and stop when commanded.
+
+Prioritize teaching and concept explanation. Execute robot commands when requested.
+
+Locations:
 {locations_list}
 
-Your Capabilities & Allowed Actions:
-- 'goto': Navigate to a specific location (destination_id required).
-- 'follow': Follow the user / faculty member safely.
-- 'stop': Immediately halt all robot movements (emergency stop).
-- 'dock': Return to the charging station / base dock.
-- 'deliver': Carry an item to a destination location.
+Actions:
+goto, follow, stop, dock, deliver
 
-Available Touchscreen Animation Tags:
-- 'explaining_ohms_law' (for Ohm's law questions)
-- 'explaining_engineering' (for other science/engineering concepts)
-- 'navigating' (when moving or going to a room)
-- 'following' (when following someone)
-- 'delivering' (when carrying items)
-- 'speaking' (for general answers, greetings, facts)
-- 'listening' (when prompt was conversational)
-- 'idle' (default idle face)
+Animations:
+explaining_ohms_law, explaining_engineering, navigating, following, delivering, speaking, listening, idle
 
-IMPORTANT: You MUST reply in valid JSON with exactly these keys:
+Return ONLY valid JSON:
 {{
-  "reply_text": "<Clear, concise spoken response to user>",
-  "animation": "<one of the animation tags above>",
+  "reply_text": "<response>",
+  "animation": "<animation>",
   "action": null OR {{
-      "task_type": "goto" | "follow" | "stop" | "dock" | "deliver",
-      "destination_id": <int or null>,
-      "destination_name": "<string or null>"
+    "task_type": "goto" | "follow" | "stop" | "dock" | "deliver",
+    "destination_id": <int or null>,
+    "destination_name": "<string or null>"
   }}
 }}
 """
@@ -168,16 +171,75 @@ def offline_rule_parser(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[
             "action": None,
         }
 
-    if any(phrase in cleaned for phrase in ["who are you", "what are you", "introduce yourself", "about yourself"]):
+    # 7. TECHBOT IDENTITY / TEAM QUESTIONS
+    if any(phrase in cleaned for phrase in [
+        "who are you", "what are you", "introduce yourself",
+        "about yourself", "tell me about yourself", "what is your name",
+        "whats your name", "your name"
+    ]):
         return {
-            "reply_text": "Hello! I am TEACHBOT, an autonomous campus service robot developed by 2nd-year ECE students for Smart India Hackathon. I assist faculty with following, lab deliveries, face-recognition attendance, and slide presentations.",
+            "reply_text": "I'm TECHBOT, an AI-powered campus assistant robot developed by the RoboCore team, a team of second-year ECE students. I'm designed to assist with campus activities, robot navigation, faculty support, engineering questions, deliveries, and other smart-campus tasks.",
+            "animation": "speaking",
+            "action": None,
+        }
+
+    if any(phrase in cleaned for phrase in [
+        "who made you", "who created you", "who developed you",
+        "who built you", "who is your developer", "who are your developers"
+    ]):
+        return {
+            "reply_text": "I was developed by the RoboCore team, a team of second-year ECE students.",
+            "animation": "speaking",
+            "action": None,
+        }
+
+    if any(phrase in cleaned for phrase in [
+        "what is robocore", "who is robocore", "tell me about robocore",
+        "what is your team", "who is your team"
+    ]):
+        return {
+            "reply_text": "RoboCore is the team behind TECHBOT. We are a team of second-year ECE students developing this AI-powered campus assistant robot.",
+            "animation": "speaking",
+            "action": None,
+        }
+
+    if any(phrase in cleaned for phrase in [
+        "who are your team members", "name your team members",
+        "tell me your team members", "who is in your team",
+        "team members", "team member names", "who made techbot"
+    ]):
+        return {
+            "reply_text": "My RoboCore team members are Viswa, Aron, Radhkrishnan, Shelina, Rayha, and Nithya.",
+            "animation": "speaking",
+            "action": None,
+        }
+
+    if any(phrase in cleaned for phrase in [
+        "what is pcb masters", "who are pcb masters", "what are pcb masters",
+        "tell me about pcb masters", "what is your team nickname",
+        "what is your team nick name", "what do you call your team",
+        "team nickname", "team nick name"
+    ]):
+        return {
+            "reply_text": "PCB Masters is the team nickname for our six-member RoboCore team: Viswa, Aron, Radhkrishnan, Shelina, Rayha, and Nithya.",
+            "animation": "speaking",
+            "action": None,
+        }
+
+    if any(phrase in cleaned for phrase in [
+        "what can you do", "what are your capabilities",
+        "your capabilities", "what do you do", "what is your purpose",
+        "why were you made"
+    ]):
+        return {
+            "reply_text": "I can assist with campus activities, robot navigation, faculty support, engineering questions, deliveries, and other smart-campus tasks.",
             "animation": "speaking",
             "action": None,
         }
 
     # Default general reply
     return {
-        "reply_text": "I'm TEACHBOT! You can ask me engineering questions or give me commands like 'Go to Lab 1', 'Follow me', or 'Stop'.",
+        "reply_text": “I'm TECHBOT, an AI-powered assistive robot developed by RoboCore. I answer questions, explain concepts, support faculty, and assist with deliveries.”,
         "animation": "speaking",
         "action": None,
     }
