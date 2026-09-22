@@ -23,15 +23,6 @@ ROBOT ROLE:
 
 Prioritize teaching and concept explanation. Execute robot commands when requested.
 
-IDENTITY RULES:
-- Your name is TechBot.
-- You are an AI-powered assistive robot developed by RoboCore.
-- Do not describe yourself as a campus assistant robot.
-- Do not mention second-year ECE students unless specifically asked.
-- Do not mention PCB Masters unless specifically asked about the team nickname.
-- For "who are you", "what is your name", or similar identity questions, use:
-  "I'm TechBot, an AI-powered assistive robot developed by RoboCore. I answer questions, explain concepts, support faculty, and assist with deliveries."
-
 Locations:
 {locations_list}
 
@@ -72,10 +63,20 @@ def match_location(user_msg: str, locations: List[Dict[str, Any]]) -> Optional[D
 def offline_rule_parser(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Intelligent offline fallback intent parser.
-    Guarantees that TechBot can execute robot commands and answer
+    Guarantees that TEACHBOT can execute robot commands and answer
     core engineering questions even without an internet connection or LLM API key.
     """
     cleaned = clean_text(user_msg)
+    
+        # Check the local academic knowledge base first.
+    kb_answer = lookup_academic_kb(user_msg)
+
+    if kb_answer:
+        return {
+            "reply_text": kb_answer,
+            "animation": "explaining_engineering",
+            "action": None,
+        }
 
     # 1. STOP / EMERGENCY HALT
     if any(word in cleaned for word in ["stop", "halt", "freeze", "brake", "pause", "shut down"]):
@@ -187,7 +188,7 @@ def offline_rule_parser(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[
         "whats your name", "your name"
     ]):
         return {
-            "reply_text": "I'm TeachBot, an AI-powered campus assistant robot developed by the RoboCore team. I'm designed to assist with campus activities, robot navigation, faculty support, engineering questions, deliveries, and other smart-campus tasks.",
+            "reply_text": "I'm TECHBOT, an AI-powered campus assistant robot developed by the RoboCore team, a team of second-year ECE students. I'm designed to assist with campus activities, robot navigation, faculty support, engineering questions, deliveries, and other smart-campus tasks.",
             "animation": "speaking",
             "action": None,
         }
@@ -248,7 +249,8 @@ def offline_rule_parser(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[
 
     # Default general reply
     return {
-"reply_text": "I'm TechBot, an AI-powered assistive robot developed by RoboCore. I answer questions, explain concepts, support faculty, and assist with deliveries.",        "animation": "speaking",
+        "reply_text": "I'm TechBot, an AI-powered assistive robot developed by RoboCore. I answer questions, explain concepts, support faculty, and assist with deliveries.",
+        "animation": "speaking",
         "action": None,
     }
 
@@ -320,18 +322,43 @@ def process_chat_message(user_msg: str, locations: List[Dict[str, Any]]) -> Dict
     fallback to the robust offline rule parser.
     """
     gemini_key = os.getenv("GEMINI_API_KEY")
-    openai_key = os.getenv("OPENAI_API_KEY")
-    print(f"[DEBUG] Gemini key present: {bool(gemini_key)}, OpenAI key present: {bool(openai_key)}")
+openai_key = os.getenv("OPENAI_API_KEY")
 
+# ---------------------------------------------------------
+# STEP 1: Check local rules + knowledge base FIRST
+# ---------------------------------------------------------
+result = offline_rule_parser(user_msg, locations)
+
+# The offline parser returns the TechBot introduction when
+# it does not recognize the question. Only then use cloud AI.
+default_reply = (
+    "I'm TechBot, an AI-powered assistive robot developed by RoboCore. "
+    "I answer questions, explain concepts, support faculty, and assist with deliveries."
+)
+
+# ---------------------------------------------------------
+# STEP 2: If local parser did not know the answer,
+#         try Gemini
+# ---------------------------------------------------------
+if (
+    not result
+    or not isinstance(result, dict)
+    or result.get("reply_text") == default_reply
+):
     result = None
 
     if gemini_key:
         result = call_gemini_api(gemini_key, user_msg, locations)
 
+    # -----------------------------------------------------
+    # STEP 3: If Gemini is unavailable, try OpenAI
+    # -----------------------------------------------------
     if not result and openai_key:
         result = call_openai_api(openai_key, user_msg, locations)
 
-    # If LLM didn't return or isn't configured, use rule-based offline parser
+    # -----------------------------------------------------
+    # STEP 4: Final offline fallback
+    # -----------------------------------------------------
     if not result or not isinstance(result, dict) or "reply_text" not in result:
         result = offline_rule_parser(user_msg, locations)
 
