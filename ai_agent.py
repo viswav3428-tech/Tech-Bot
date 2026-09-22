@@ -68,7 +68,7 @@ def offline_rule_parser(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[
     """
     cleaned = clean_text(user_msg)
     
-        # Check the local academic knowledge base first.
+    # Check the local academic knowledge base first.
     kb_answer = lookup_academic_kb(user_msg)
 
     if kb_answer:
@@ -315,56 +315,76 @@ def call_openai_api(api_key: str, user_msg: str, locations: List[Dict[str, Any]]
     return None
 
 
-def process_chat_message(user_msg: str, locations: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Main entrypoint for the Conversational AI Agent.
-    Prioritizes Gemini / OpenAI if configured in .env, with instant
-    fallback to the robust offline rule parser.
-    """
+def process_chat_message(
+    user_msg: str,
+    locations: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+
     gemini_key = os.getenv("GEMINI_API_KEY")
-openai_key = os.getenv("OPENAI_API_KEY")
+    openai_key = os.getenv("OPENAI_API_KEY")
 
-# ---------------------------------------------------------
-# STEP 1: Check local rules + knowledge base FIRST
-# ---------------------------------------------------------
-result = offline_rule_parser(user_msg, locations)
+    # ---------------------------------------------------------
+    # STEP 1: Local rules + knowledge base
+    # ---------------------------------------------------------
+    result = offline_rule_parser(user_msg, locations)
 
-# The offline parser returns the TechBot introduction when
-# it does not recognize the question. Only then use cloud AI.
-default_reply = (
-    "I'm TechBot, an AI-powered assistive robot developed by RoboCore. "
-    "I answer questions, explain concepts, support faculty, and assist with deliveries."
-)
+    default_reply = (
+        "I'm TechBot, an AI-powered assistive robot developed by RoboCore. "
+        "I answer questions, explain concepts, support faculty, and assist with deliveries."
+    )
 
-# ---------------------------------------------------------
-# STEP 2: If local parser did not know the answer,
-#         try Gemini
-# ---------------------------------------------------------
-if (
-    not result
-    or not isinstance(result, dict)
-    or result.get("reply_text") == default_reply
-):
-    result = None
+    # ---------------------------------------------------------
+    # STEP 2: Use Gemini only when local parser did not
+    # recognize the question
+    # ---------------------------------------------------------
+    if (
+        not result
+        or not isinstance(result, dict)
+        or result.get("reply_text") == default_reply
+    ):
+        result = None
 
-    if gemini_key:
-        result = call_gemini_api(gemini_key, user_msg, locations)
+        if gemini_key:
+            result = call_gemini_api(
+                gemini_key,
+                user_msg,
+                locations,
+            )
 
-    # -----------------------------------------------------
-    # STEP 3: If Gemini is unavailable, try OpenAI
-    # -----------------------------------------------------
-    if not result and openai_key:
-        result = call_openai_api(openai_key, user_msg, locations)
+        # -----------------------------------------------------
+        # STEP 3: OpenAI fallback
+        # -----------------------------------------------------
+        if not result and openai_key:
+            result = call_openai_api(
+                openai_key,
+                user_msg,
+                locations,
+            )
 
-    # -----------------------------------------------------
-    # STEP 4: Final offline fallback
-    # -----------------------------------------------------
-    if not result or not isinstance(result, dict) or "reply_text" not in result:
-        result = offline_rule_parser(user_msg, locations)
+        # -----------------------------------------------------
+        # STEP 4: Final offline fallback
+        # -----------------------------------------------------
+        if (
+            not result
+            or not isinstance(result, dict)
+            or "reply_text" not in result
+        ):
+            result = offline_rule_parser(
+                user_msg,
+                locations,
+            )
 
-    # Sanitize and ensure standard structure
+    # ---------------------------------------------------------
+    # FINAL RESULT
+    # ---------------------------------------------------------
     return {
-        "reply_text": result.get("reply_text", "I am listening."),
-        "animation": result.get("animation", "speaking"),
+        "reply_text": result.get(
+            "reply_text",
+            "I am listening.",
+        ),
+        "animation": result.get(
+            "animation",
+            "speaking",
+        ),
         "action": result.get("action"),
     }
