@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Permissions-Policy" content="microphone=(self)">
-<title>TEACHBOT Control</title>
+<title>TECHBOT Control</title>
 <style>
   :root{--bg:#10141a;--panel:#171d26;--panel-border:#262e3a;--text:#e6eaf0;--text-dim:#8b93a3;--accent:#4fd1c5;--accent-dim:#2c7a72;--warn:#f0a742;--danger:#e5697b;--mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.5}
@@ -52,7 +52,7 @@
 </style>
 </head>
 <body>
-<header><h1>TEACHBOT Control</h1><div id="conn"><span class="dot"></span><span id="connText">connecting...</span></div></header>
+<header><h1>TECHBOT Control</h1><div id="conn"><span class="dot"></span><span id="connText">connecting...</span></div></header>
 <main>
   <div>
     <div class="panel"><h2>Robot status</h2><div class="stat-row"><span class="stat-label">Battery</span><span class="stat-value" id="stat-battery">--</span></div><div class="stat-row"><span class="stat-label">Mode</span><span class="stat-value" id="stat-mode">--</span></div><div class="stat-row"><span class="stat-label">Position</span><span class="stat-value" id="stat-pos">--</span></div><div class="stat-row"><span class="stat-label">Last update</span><span class="stat-value" id="stat-time">--</span></div></div>
@@ -61,7 +61,7 @@
     <div class="panel"><h2>Presentation slides <span style="color:var(--text-dim);font-weight:400">(placeholder)</span></h2><input type="file" id="slideFile" onchange="handleSlideUpload(this)"><div id="slideName">No file selected</div></div>
   </div>
   <div>
-    <div class="panel"><h2>Talk to TEACHBOT</h2><div id="avatarBox"><span id="avatarFace">🤖</span><span id="avatarLabel">idle</span></div><div id="chatLog"></div>
+    <div class="panel"><h2>Talk to TECHBOT</h2><div id="avatarBox"><span id="avatarFace">🤖</span><span id="avatarLabel">idle</span></div><div id="chatLog"></div>
       <div id="micMini">
   <button id="enableMicBtn" onclick="enableMicrophone()" title="Microphone settings">🎙️</button>
   <span id="micState">Mic</span>
@@ -89,7 +89,7 @@ async function refreshTask(){try{const r=await fetch(`${BACKEND_URL}/tasks/pendi
 async function loadLocations(){try{const r=await fetch(`${BACKEND_URL}/locations`);if(!r.ok)throw Error();const locs=await r.json();const s=document.getElementById('destSelect');s.innerHTML='';locs.forEach(l=>{const o=document.createElement('option');o.value=l.id;o.textContent=l.name;s.appendChild(o)})}catch(e){document.getElementById('destSelect').innerHTML='<option>Could not load locations</option>'}}
 async function sendTask(type){const destId=document.getElementById('destSelect').value;const body={robot_id:ROBOT_ID,task_type:type,requested_via:'dashboard'};if(type==='goto'&&destId)body.destination_id=parseInt(destId,10);try{const r=await fetch(`${BACKEND_URL}/tasks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error();refreshTask()}catch(e){alert('Could not send command — check backend connection')}}
 function appendMessage(text,sender,animation){const log=document.getElementById('chatLog');const div=document.createElement('div');div.className=`msg ${sender}`;div.textContent=text;if(animation){const tag=document.createElement('span');tag.className='tag';tag.textContent=`animation: ${animation}`;div.appendChild(tag)}log.appendChild(div);log.scrollTop=log.scrollHeight}
-async function sendChat(){const input=document.getElementById('chatInput'),message=input.value.trim();if(!message)return;appendMessage(message,'user');input.value='';try{const payload={message,robot_id:ROBOT_ID};if(sessionId)payload.session_id=sessionId;const r=await fetch(`${BACKEND_URL}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok)throw Error();const d=await r.json();sessionId=d.session_id||sessionId;appendMessage(d.reply_text||'No reply received.','agent',d.animation);updateAvatar(d.animation);speakReply(d.reply_text||'');refreshTask()}catch(e){appendMessage('Could not reach TEACHBOT — check backend connection.','agent')}}
+async function sendChat(){const input=document.getElementById('chatInput'),message=input.value.trim();if(!message)return;appendMessage(message,'user');input.value='';try{const payload={message,robot_id:ROBOT_ID};if(sessionId)payload.session_id=sessionId;const r=await fetch(`${BACKEND_URL}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok)throw Error();const d=await r.json();sessionId=d.session_id||sessionId;appendMessage(d.reply_text||'No reply received.','agent',d.animation);updateAvatar(d.animation);speakReply(d.reply_text||'');refreshTask()}catch(e){appendMessage('Could not reach TECHBOT — check backend connection.','agent')}}
 function setVoiceStatus(text,error=false){const e=document.getElementById('voiceStatus');e.textContent=text;e.className=error?'error':'active'}
 function setMicState(text,kind=''){const e=document.getElementById('micState');e.textContent=text;e.className='voice-state '+kind}
 function isSecureForMic(){return window.isSecureContext||location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'||location.protocol==='file:'}
